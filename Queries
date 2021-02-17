@@ -1,0 +1,206 @@
+#The goal of the project is to do analytics on flight performance using carrier data. 
+#Data is stored as parquet files in the format <airtraffic-analytics-state-yyyy-mm>. Here I am analyzng flight data from CA airports for 2019 December
+
+#Total no of flights
+SELECT COUNT(*) AS no_of_rows 
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+
+#No of airports in CA
+select count(*)
+from
+(SELECT distinct ORIGIN AS airports
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+union distinct
+SELECT distinct DEST AS airports
+FROM `dwh.airtraffic-analytics-ca-2019-12`) t
+
+#List of airports in CA
+(SELECT  DEST AS airports
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE DEST_STATE_ABR = 'CA')
+UNION DISTINCT
+(SELECT  ORIGIN AS airports
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE ORIGIN_STATE_ABR = 'CA')
+ORDER BY airports
+
+#Total arrivals at each airport
+SELECT DEST, count(*) AS total_arrivals
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE DEST_STATE_ABR = 'CA'
+GROUP BY DEST
+ORDER BY total_arrivals
+
+#Total arrivals and departures at each airport
+WITH airports as
+(
+    (SELECT  DEST AS airport
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE DEST_STATE_ABR = 'CA')
+UNION DISTINCT
+(SELECT  ORIGIN AS airport
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE ORIGIN_STATE_ABR = 'CA')
+ORDER BY airport
+)
+SELECT airport,
+       (SELECT count(*) FROM `dwh.airtraffic-analytics-ca-2019-12` WHERE DEST = a.airport) AS total_arrivals,
+       (SELECT count(*) FROM `dwh.airtraffic-analytics-ca-2019-12` WHERE ORIGIN = a.airport) AS total_departures
+FROM airports a
+
+#Arrival performace - Arrivals earlier than 5 minutes of scheduled arrivals are EARLY, upto 15 min after scheduled arrival is ON TIME and after 15 min is DELAYED
+#Since only minutes are available the calssification is generated first and then percentage is measured
+WITH n AS
+(select count(*) AS nrow from `dwh.airtraffic-analytics-ca-2019-12`)
+SELECT Arrival_Performance, ROUND(COUNT(*)/(select nrow from n),2) AS No_Of_flights
+FROM
+(SELECT case when ARR_DELAY < -5 then 'EARLY'
+            when ARR_DELAY < 5 then 'ON TIME'
+            else 'DELAYED'
+        end as Arrival_Performance
+FROM `dwh.airtraffic-analytics-ca-2019-12`) t
+GROUP BY Arrival_Performance
+
+#No. of flights by day of the week
+SELECT (CASE WHEN DAY_OF_WEEK = 1 THEN 'SUNDAY'
+             WHEN DAY_OF_WEEK = 2 THEN 'MONDAY'
+             WHEN DAY_OF_WEEK = 3 THEN 'TUESDAY'
+             WHEN DAY_OF_WEEK = 4 THEN 'WEDNESDAY'
+             WHEN DAY_OF_WEEK = 5 THEN 'THURSDAY'
+             WHEN DAY_OF_WEEK = 6 THEN 'FRIDAY'
+             WHEN DAY_OF_WEEK = 7 THEN 'SATURDAY'
+             ELSE 'NA'
+        END) AS Weekday,
+       COUNT(*) AS total_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+
+#Average No. of flights by day of the week
+SELECT Weekday, total_flights/no_of_weekdays_in_month AS avg_flights
+FROM
+(SELECT DAY_OF_WEEK,
+        (CASE WHEN DAY_OF_WEEK = 1 THEN 'MONDAY'
+              WHEN DAY_OF_WEEK = 2 THEN 'TUESDAY'
+              WHEN DAY_OF_WEEK = 3 THEN 'WEDNESDAY'
+              WHEN DAY_OF_WEEK = 4 THEN 'THURSDAY'
+              WHEN DAY_OF_WEEK = 5 THEN 'FRIDAY'
+              WHEN DAY_OF_WEEK = 6 THEN 'SATURDAY'
+              WHEN DAY_OF_WEEK = 7 THEN 'SUNDAY'
+              ELSE 'NA'
+        END) AS Weekday,
+       COUNT(*) AS total_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1 ) a
+INNER JOIN
+(SELECT DAY_OF_WEEK, COUNT(DISTINCT FL_DATE) AS no_of_weekdays_in_month
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1) b
+on a.DAY_OF_WEEK = b.DAY_OF_WEEK
+
+#No. of flights by carrier
+SELECT OP_UNIQUE_CARRIER, COUNT(*) AS total_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+ORDER BY 2 DESC
+
+#Average Departure Taxi time
+SELECT ORIGIN, Round(Avg(TAXI_OUT),2) AS avg_dep_taxi_time
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE ORIGIN_STATE_ABR = 'CA'
+GROUP BY 1
+ORDER BY avg_dep_taxi_time DESC
+
+#Average Arrival Taxi time
+SELECT DEST, Round(Avg(TAXI_OUT),2) AS avg_arr_taxi_time
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE DEST_STATE_ABR = 'CA'
+GROUP BY 1
+ORDER BY avg_arr_taxi_time DESC
+
+#Average Arrival and Departure Taxi time
+WITH airports as
+(
+(SELECT  DEST AS airport
+FROM `gcp-take-1.ca_2019_12.airtraffic_analytics_ca`
+WHERE DEST_STATE_ABR = 'CA')
+UNION DISTINCT
+(SELECT  ORIGIN AS airport
+FROM `gcp-take-1.ca_2019_12.airtraffic_analytics_ca`
+WHERE ORIGIN_STATE_ABR = 'CA')
+ORDER BY airport
+)
+SELECT DISTINCT airport,
+       (SELECT ROUND(AVG(TAXI_IN),1) FROM `gcp-take-1.ca_2019_12.airtraffic_analytics_ca` WHERE DEST = a.airport) AS avg_taxi_in,
+       (SELECT ROUND(AVG(TAXI_OUT),1) FROM `gcp-take-1.ca_2019_12.airtraffic_analytics_ca` WHERE ORIGIN = a.airport) AS avg_taxi_out
+FROM airports a
+#LA has the highest taxi-in time while SFO has the highest taxi-out time
+
+#Delayed flight statistics
+#Days with most delayed flights
+SELECT FL_DATE, SUM(CASE WHEN ARR_DELAY > 15 THEN 1 ELSE 0 END) as delayed_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5
+
+#Carriers with most no. of delayed flights
+SELECT OP_UNIQUE_CARRIER AS carrier, SUM(CASE WHEN ARR_DELAY > 15 THEN 1 ELSE 0 END) as delayed_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+ORDER BY 2 DESC
+LIMIT 5
+
+#Security delays and the date on which they occured
+SELECT FL_DATE, ORIGIN, count(*) AS security_delays
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE SECURITY_DELAY <>0
+GROUP BY 1,2
+ORDER BY 1
+
+#If there is a delay, one of the fields below will have >0 minutes in the field, the query generates 1/0 indicator for each reason 
+#which is then used to find the total no. of delays for each reason
+SELECT SUM(CASE WHEN CARRIER_DELAY>0 THEN 1 ELSE 0 END) AS carrier_delay,
+       SUM(CASE WHEN WEATHER_DELAY>0 THEN 1 ELSE 0 END) AS weather_delay,
+       SUM(CASE WHEN NAS_DELAY>0 THEN 1 ELSE 0 END) AS nas_delay,
+       SUM(CASE WHEN SECURITY_DELAY>0 THEN 1 ELSE 0 END) AS security_delay,
+       SUM(CASE WHEN LATE_AIRCRAFT_DELAY>0 THEN 1 ELSE 0 END) AS aircraft_delay
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+
+
+#Cancelled flight statistics
+#To see how the values indicating a flights is cancelled for e.g 1/0 or Y/N or True/.
+SELECT DISTINCT CANCELLED
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+
+#Total no of cancelled flights
+SELECT COUNT(*)
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+WHERE CANCELLED = 1
+
+#Percentage of cancelled flights
+select sum(case when CANCELLED = 1 then 1
+            else 0 end)/count(*) as cancelled
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+
+#Total cancelled flights per airport
+SELECT DEST, SUM(CANCELLED) as cancelled_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY DEST
+ORDER BY cancelled_flights DESC
+
+#Percentage of Cancelled flights per airport
+SELECT DEST, ROUND((SUM(CANCELLED)/count(*))*100,2) as cancelled_flights_percent
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY DEST
+ORDER BY cancelled_flights_percent DESC
+
+#Total cancelled flights by carrier
+SELECT OP_UNIQUE_CARRIER AS carrier,, SUM(CANCELLED) as cancelled_flights
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+ORDER BY 2 DESC
+
+SELECT OP_UNIQUE_CARRIER AS carrier, ROUND((SUM(CANCELLED)/count(*))*100,2) as cancelled_flights_percent
+FROM `dwh.airtraffic-analytics-ca-2019-12`
+GROUP BY 1
+ORDER BY 2 DESC
