@@ -7,6 +7,7 @@ I used BigQuery to do EDA and metrics in SQL. I did this using Pandas as part of
 
 Sources of data: https://www.bts.gov/ , https://ourairports.com/ , https://geopandas.org/
 
+
 Data Dictionary - Schema
 year
 day_of_week
@@ -31,8 +32,7 @@ dep_delay_new
 taxi_out
 wheels_off
 wheels_on
-taxi_in
-crs_arr_time
+taxi_incrs_arr_time
 arr_time
 arr_delay
 arr_delay_new
