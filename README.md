@@ -9,40 +9,40 @@ Sources of data: https://www.bts.gov/ , https://ourairports.com/ , https://geopa
 
 
 Data Dictionary - Schema
-year
-day_of_week
-fl_date
-op_unique_carrier
-tail_num
-op_carrier_fl_num
-origin_airport_id
-origin
-origin_city_name
-origin_state_abr
-origin_state_nm
-dest_airport_id
-dest
-dest_city_name
-dest_state_abr
-dest_state_nm
-crs_dep_time
-dep_time
-dep_delay
-dep_delay_new
-taxi_out
-wheels_off
-wheels_on
-taxi_incrs_arr_time
-arr_time
-arr_delay
-arr_delay_new
-cancelled
-cancellation_code
-diverted
-air_time
-distance
-carrier_delay
-weather_delay
-nas_delay
-security_delay
-late_aircraft_delay
+|year |
+|day_of_week | 
+|fl_date | 
+|op_unique_carrier | 
+|tail_num | 
+|op_carrier_fl_num | 
+|origin_airport_id | 
+|origin | 
+|origin_city_name | 
+|origin_state_abr | 
+|origin_state_nm | 
+|dest_airport_id | 
+|dest | 
+|dest_city_name | 
+|dest_state_abr | 
+|dest_state_nm | 
+|crs_dep_time | 
+|dep_time | 
+|dep_delay | 
+|dep_delay_new | 
+|taxi_out | 
+|wheels_off | 
+|wheels_on | 
+|taxi_incrs_arr_time | 
+|arr_time | 
+|arr_delay | 
+|arr_delay_new | 
+|cancelled | 
+|cancellation_code | 
+|diverted | 
+|air_time | 
+|distance | 
+|carrier_delay | 
+|weather_delay | 
+|nas_delay | 
+|security_delay | 
+|late_aircraft_delay | 
